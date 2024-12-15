@@ -1,8 +1,11 @@
 # Default ignored files
 /shelf/
 /.idea/workspace.xml
-/.gitignore
 /misc.xml
 /modules.xml
 /slave-server.iml
 /vcs.xml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/slave-server.iml
+/.idea/vcs.xml
