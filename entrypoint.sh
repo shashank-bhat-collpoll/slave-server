@@ -9,31 +9,23 @@ cp my.cnf /etc/mysql/mysql.conf.d/mysqld.cnf
 # Restart MySQL to apply new configuration
 service mysql restart
 
-
-# Set up MySQL root user to be accessible from any host
-mysql --user=root <<EOF
-ALTER USER 'root'@'localhost' IDENTIFIED BY 'Welcome@123';
-CREATE USER 'root'@'%' IDENTIFIED BY 'Welcome@123';
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-EOF
-
-# Add 'replica_write' user with all privileges
-mysql --user=root --password=Welcome@123 <<EOF
-CREATE USER 'replica_write'@'%' IDENTIFIED BY 'Welcome@123';
-GRANT ALL PRIVILEGES ON *.* TO 'replica_write'@'%' WITH GRANT OPTION;
+# Add replica user with required privileges
+mysql -u root -p${MYSQL_ROOT_USER_PASSWORD} <<EOF
+CREATE USER '${MYSQL_REPLICA_USER}'@'%' IDENTIFIED BY '${MYSQL_ROOT_USER_PASSWORD}';
+GRANT ALL PRIVILEGES ON *.* TO '${MYSQL_REPLICA_USER}'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 EOF
 
 # Create database in slave server
-mysql --user=root --password=Welcome@123 <<EOF
-CREATE DATABASE digiihub;
+mysql -u root -p${MYSQL_ROOT_USER_PASSWORD} <<EOF
+CREATE DATABASE test_db1;
+CREATE DATABASE test_db2;
 EOF
 
 # Check if the master dump has already been imported else dump.
 if [ ! -f /var/lib/mysql/slave_initialized.flag ]; then
     echo "Initializing slave database with master dump..."
-    mysql -uroot -pWelcome@123 digiihub < db_dump.sql
+    mysql -u${MYSQL_REPLICA_USER} -p${MYSQL_REPLICA_USER_PASSWORD} < db_dump.sql
     touch /var/lib/mysql/slave_initialized.flag
 fi
 
@@ -42,15 +34,15 @@ service mysql restart
 
 
 # Configure slave replication
-mysql --user=root --password=${MYSQL_ROOT_PASSWORD} <<EOF
+mysql -u${MYSQL_REPLICA_USER} -p{MYSQL_REPLICA_USER_PASSWORD} <<EOF
 STOP SLAVE;
 STOP REPLICA IO_THREAD FOR CHANNEL '';
 CHANGE MASTER TO
     MASTER_HOST='host.docker.internal',
-    MASTER_USER='replica_write',
-    MASTER_PASSWORD='Welcome@123',
-    MASTER_LOG_FILE='mysql-bin.001828',
-    MASTER_LOG_POS=2220;
+    MASTER_USER='${MYSQL_REPLICA_USER}',
+    MASTER_PASSWORD='${MYSQL_REPLICA_USER_PASSWORD}',
+    MASTER_LOG_FILE='${DB_BINLOG}',
+    MASTER_LOG_POS=${DB_POSITION};
 START REPLICA IO_THREAD FOR CHANNEL '';
 START SLAVE;
 EOF

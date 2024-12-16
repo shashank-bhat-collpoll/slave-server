@@ -11,7 +11,7 @@ Follow the instructions [here](https://docs.docker.com/engine/install/ubuntu/) t
 
 ## Master Configuration
 
-**Create Mysql User `replica_write`**
+**Create Mysql replica user**
 
 Both master and slave servers should have the same user and password. Run the following commands on the master:
 
@@ -28,7 +28,7 @@ Also grant permission for all database to the user.
 
 **Master mysql config file changes**
 
-Ensure your master MySQL server is configured with the following settings in `/etc/mysql/mysql.conf.d/mysqld.cnf`:
+Configured master MySQL server with the following settings in `/etc/mysql/mysql.conf.d/mysqld.cnf`:
 
 ```shell
 sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
@@ -40,7 +40,13 @@ server-id=1
 port=3306
 log_bin=/var/log/mysql/mysql-bin.log
 bind-address=0.0.0.0
-binlog_do_db=database_name
+binlog_do_db=test_db1
+binlog_do_db=test_db2
+```
+
+Restart mysql server to apply the changes.
+```shell
+sudo systemctl restart mysql
 ```
 
 **Check master binlog and position**
@@ -51,7 +57,7 @@ mysql> SHOW MASTER STATUS\G;
 *************************** 1. row ***************************
              File: mysql-bin.001828
          Position: 3072
-     Binlog_Do_DB: database_name
+     Binlog_Do_DB: db_test1
  Binlog_Ignore_DB: 
 Executed_Gtid_Set: 
 1 row in set (0.00 sec)
@@ -61,7 +67,7 @@ Executed_Gtid_Set:
 
 Run the following command to create the database dump:
 ```shell
-mysqldump --single-transaction=TRUE -u replica_write -p database_name > db_dump.sql
+mysqldump --single-transaction=TRUE -u replica_write -pWelcome@123 test_db1 test_db2 > db_dump.sql
 ```
 
 Place the latest database dump file in `slave-server/db_dump.sql`.
@@ -72,7 +78,7 @@ Place the latest database dump file in `slave-server/db_dump.sql`.
 
 ## Build and Run the Docker Container
 
-### 1. Build the Docker Image
+### Build the Docker Image
 
 Run the following commands in the directory containing the `Dockerfile`, `my.cnf`, and `entrypoint.sh`:
 
@@ -104,7 +110,7 @@ docker build -t mysql-slave .
 
 > **Note:** Ensure the database dump file (`db_dump.sql`) is placed correctly to avoid errors.
 
-### 2. Run the Docker Container
+### Run the Docker Container
 
 Start the container, mapping ports for MySQL (3306) and Nginx (80):
 
@@ -112,13 +118,65 @@ Start the container, mapping ports for MySQL (3306) and Nginx (80):
 docker run -d --name mysql-slave -p 3307:3306 -p 8085:80 mysql-slave
 ```
 
-### 3. Log into the Docker Container
+### Log into the Docker Container
 
 Access the container’s terminal:
 
 ```bash
 docker exec -it mysql-slave bash
 ```
+
+## Debug slave ensure nothing missed.
+
+Check slave config file whether `my.cnf` file copied to the slave config file properly. 
+```shell
+cat /etc/mysql/mysql.conf.d/mysqld.cnf
+```
+
+```ini
+[mysqld]
+server-id=2
+port=3306
+log_bin=/var/log/mysql/mysql-bin.log
+relay-log=/var/log/mysql/mysql-relay-bin.log
+binlog_do_db=test_db1
+binlog_do_db=test_db2
+bind-address=0.0.0.0
+```
+
+Check replica user got created in slave db server.
+
+Login to mysql with root user and check `mysql.user` table.
+```
+mysql> SELECT user, host, plugin FROM mysql.user;
++------------------+-----------+-----------------------+
+| user             | host      | plugin                |
++------------------+-----------+-----------------------+
+| replica_write    | %         | mysql_native_password |
+| root             | %         | mysql_native_password |
+| debian-sys-maint | localhost | caching_sha2_password |
+| mysql.infoschema | localhost | caching_sha2_password |
+| mysql.session    | localhost | caching_sha2_password |
+| mysql.sys        | localhost | caching_sha2_password |
+| root             | localhost | mysql_native_password |
++------------------+-----------+-----------------------+
+```
+
+Login to mysql with replica user and check databases are copied and table has data.
+```
+mysql> show databases;
++--------------------+
+| Database           |
++--------------------+
+| test_db1           |
+| test_db2           |
+| information_schema |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+```
+
 
 ## Accessing Databases
 
@@ -140,7 +198,7 @@ Log in to the slave database:
 docker exec -it mysql-slave mysql -u replica_write -p
 ```
 
-Password: `Welcome@123`
+Password: `replica_password`
 
 ## Configuring Replication
 
@@ -149,13 +207,13 @@ Password: `Welcome@123`
 Run the following command on the master database to get the binlog file and position:
 
 ```sql
-SHOW MASTER STATUS\G
+SHOW MASTER STATUS\G;
 ```
 
 Run the following command on the slave database to get the slave status:
 
 ```sql
-SHOW SLAVE STATUS\G
+SHOW SLAVE STATUS\G;
 ```
 
 ## Logging into the Database
@@ -163,7 +221,7 @@ SHOW SLAVE STATUS\G
 Log in with the credentials:
 
 ```bash
-mysql -u replica_write -pWelcome@123
+mysql -u replica_write -p replica_password
 ```
 
 

@@ -11,7 +11,11 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # Set environment variables for MySQL
-ENV MYSQL_ROOT_PASSWORD=Welcome@123
+ENV MYSQL_ROOT_USER_PASSWORD=Welcome@123
+ENV MYSQL_REPLICA_USER=replica_write
+ENV MYSQL_REPLICA_USER_PASSWORD=Welcome@123
+ENV DB_BINLOG=mysql-bin.001833
+ENV DB_POSITION=157
 
 # Expose ports for MySQL and Nginx
 EXPOSE 3306 80
