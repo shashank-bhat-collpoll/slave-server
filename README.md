@@ -62,6 +62,7 @@ mysql> SHOW MASTER STATUS\G;
 Executed_Gtid_Set: 
 1 row in set (0.00 sec)
 ```
+Update the file and position in the `Dockerfile`
 
 **Create master db dump**
 
