@@ -1,11 +1,9 @@
 # Default ignored files
 /shelf/
-/.idea/workspace.xml
+/.idea/
+.idea
 /misc.xml
 /modules.xml
 /slave-server.iml
 /vcs.xml
-/.idea/misc.xml
-/.idea/modules.xml
-/.idea/slave-server.iml
-/.idea/vcs.xml
+/db_dump.sql
