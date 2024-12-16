@@ -67,16 +67,13 @@ Executed_Gtid_Set:
 
 Run the following command to create the database dump:
 ```shell
-mysqldump --single-transaction=TRUE -u replica_write -pWelcome@123 test_db1 test_db2 > db_dump.sql
+mysqldump --single-transaction=TRUE -u replica_write -pWelcome@123 --databases test_db1 test_db2 > db_dump.sql
 ```
 
 Place the latest database dump file in `slave-server/db_dump.sql`.
 
 
 ## Preparing the Slave Server
-
-
-## Build and Run the Docker Container
 
 ### Build the Docker Image
 
@@ -86,39 +83,15 @@ Run the following commands in the directory containing the `Dockerfile`, `my.cnf
 docker build -t mysql-slave .
 ```
 
-```
-[+] Building 4.3s (11/11) FINISHED                                                                                                                                                                          docker:desktop-linux
- => [internal] load build definition from Dockerfile                                                                                                                                                                        0.0s
- => => transferring dockerfile: 679B                                                                                                                                                                                        0.0s
- => [internal] load metadata for docker.io/library/ubuntu:22.04                                                                                                                                                             3.6s
- => [internal] load .dockerignore                                                                                                                                                                                           0.0s
- => => transferring context: 2B                                                                                                                                                                                             0.0s
- => [1/6] FROM docker.io/library/ubuntu:22.04@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97                                                                                                       0.0s
- => [internal] load build context                                                                                                                                                                                           0.0s
- => => transferring context: 902B                                                                                                                                                                                           0.0s
- => CACHED [2/6] RUN apt-get update && apt-get install -y     mysql-server     nginx     curl     nano     net-tools     && apt-get clean                                                                                   0.0s
- => CACHED [3/6] COPY my.cnf /my.cnf                                                                                                                                                                                        0.0s
- => [4/6] COPY db_dump.sql /db_dump.sql                                                                                                                                                                                     0.0s
- => [5/6] COPY entrypoint.sh /entrypoint.sh                                                                                                                                                                                 0.1s
- => [6/6] RUN chmod +x /entrypoint.sh                                                                                                                                                                                       0.3s
- => exporting to image                                                                                                                                                                                                      0.1s
- => => exporting layers                                                                                                                                                                                                     0.1s
- => => writing image sha256:957efc91c7e61fd43d459d9ad6aa2d6cde5d5d89d18efb3fb6961bcd7941d62d                                                                                                                                0.0s
- => => naming to docker.io/library/mysql-slave                                                                                                                                                                              0.0s
- 
-```
-
-> **Note:** Ensure the database dump file (`db_dump.sql`) is placed correctly to avoid errors.
-
 ### Run the Docker Container
 
 Start the container, mapping ports for MySQL (3306) and Nginx (80):
 
 ```bash
-docker run -d --name mysql-slave -p 3307:3306 -p 8085:80 mysql-slave
+docker run --name mysql-slave -p 3307:3306 -p 8085:80 mysql-slave
 ```
 
-### Log into the Docker Container
+### SSH into the Slave server
 
 Access the container’s terminal:
 
@@ -126,102 +99,5 @@ Access the container’s terminal:
 docker exec -it mysql-slave bash
 ```
 
-## Debug slave ensure nothing missed.
-
-Check slave config file whether `my.cnf` file copied to the slave config file properly. 
-```shell
-cat /etc/mysql/mysql.conf.d/mysqld.cnf
-```
-
-```ini
-[mysqld]
-server-id=2
-port=3306
-log_bin=/var/log/mysql/mysql-bin.log
-relay-log=/var/log/mysql/mysql-relay-bin.log
-binlog_do_db=test_db1
-binlog_do_db=test_db2
-bind-address=0.0.0.0
-```
-
-Check replica user got created in slave db server.
-
-Login to mysql with root user and check `mysql.user` table.
-```
-mysql> SELECT user, host, plugin FROM mysql.user;
-+------------------+-----------+-----------------------+
-| user             | host      | plugin                |
-+------------------+-----------+-----------------------+
-| replica_write    | %         | mysql_native_password |
-| root             | %         | mysql_native_password |
-| debian-sys-maint | localhost | caching_sha2_password |
-| mysql.infoschema | localhost | caching_sha2_password |
-| mysql.session    | localhost | caching_sha2_password |
-| mysql.sys        | localhost | caching_sha2_password |
-| root             | localhost | mysql_native_password |
-+------------------+-----------+-----------------------+
-```
-
-Login to mysql with replica user and check databases are copied and table has data.
-```
-mysql> show databases;
-+--------------------+
-| Database           |
-+--------------------+
-| test_db1           |
-| test_db2           |
-| information_schema |
-| mysql              |
-| performance_schema |
-| sys                |
-+--------------------+
-```
-
-
-## Accessing Databases
-
-### Access Master Database from Slave terminal
-
-Test connectivity from the container to the master server:
-
-```bash
-mysql -h <master_ip> -u replica_write -p
-```
-
-> **Note:** You can check ip by executing `ip a` command in terminal.
-
-### Access Slave Database from Master terminal
-
-Log in to the slave database:
-
-```bash
-docker exec -it mysql-slave mysql -u replica_write -p
-```
-
-Password: `replica_password`
-
-## Configuring Replication
-
-### Check Master and Slave status
-
-Run the following command on the master database to get the binlog file and position:
-
-```sql
-SHOW MASTER STATUS\G;
-```
-
-Run the following command on the slave database to get the slave status:
-
-```sql
-SHOW SLAVE STATUS\G;
-```
-
-## Logging into the Database
-
-Log in with the credentials:
-
-```bash
-mysql -u replica_write -p replica_password
-```
 
 
